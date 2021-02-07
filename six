@@ -1,0 +1,297 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[10]:
+
+import matplotlib.pyplot as plt
+import numpy as np
+import geatpy as ea
+import alorithm_psy as al
+g=2
+
+class Platform:                     # equal to resource
+    def __init__(self, ptype, speed, pos):
+        self.ptype = ptype          # platform type
+        self.speed = speed          # (average) moving speed, m/s
+        self.pos = pos              # platform position, tuple
+
+class Task:
+    def __init__(self, pred, dur, resDmd, resInv):
+        self.pred = pred            # indices of direct predecessors, None or list
+        self.dur = dur              # duration, scaler (calc. by Task.duration(...))
+        self.resDmd = resDmd        # resource demanded, nparray
+        self.resInv = resInv        # resource invested, nparray, by NSGA
+        #self.pos = pos             # execution position, tuple
+    
+    def duration(self, Platforms, levelSet):
+        ...
+
+    def start_time(self, T_pred, T_prior, resAvail):
+        # schedule Task at the earliest feasible time
+        # T_pred is the Tasks of the direct predecessors in a list
+        # T_prior is all the prior Tasks in a list, by NSGA
+        # resAvail is all the resource available in a list/nparray 
+        if T_prior is None:
+            self.ts = 0             # Task start time
+        else:
+            if T_pred is None:
+                te_pred_max = 0
+            else:
+                te_pred = []                # end time of the direct predecessors
+                for Task in T_pred:
+                    te_pred.append(Task.ts+Task.dur)
+                te_pred_max = max(te_pred)  # from te_pred_max on ...
+            tste_prior = []
+            for Task in T_prior:
+                if Task.ts >= te_pred_max:
+                    tste_prior.append(Task.ts)
+                if Task.ts+Task.dur >= te_pred_max:
+                    tste_prior.append(Task.ts+Task.dur)
+            tste_prior.sort()
+            for time in tste_prior:
+                resCsm = np.zeros_like(self.resDmd) # resource consumed
+                for Task in T_prior:
+                    if time >= Task.ts and time < Task.ts+Task.dur:
+                        resCsm += Task.resInv
+                resCsm += self.resInv
+                cmpRst = (resCsm <= resAvail)
+                if cmpRst.all():
+                    self.ts = time
+                    break
+
+def schedule(Tasks,s):
+    # To calculate the feasible start time for each Task
+    # Tasks: all the Tasks in a list
+    for (ind, Task) in enumerate(Tasks):
+
+        if Task.pred is None:
+            T_pred = None
+        else:
+            T_pred = []
+            for i in Task.pred:
+                T_pred.append(Tasks[np.where(s==i)[0][0]])
+        if ind == 0:
+            T_prior = None
+        else:
+            T_prior = Tasks[:Tasks.index(Task)]
+
+        Task.start_time(T_pred, T_prior, resAvail)
+
+def calc_makespan(Tasks):
+    # To calculate the Makespan
+    # Tasks: all the Tasks in a list
+    te = []             # end time of all the tasks
+    for Task in Tasks:
+        te.append(Task.ts+Task.dur)
+    return max(te)
+
+def calc_winrate(Tasks, Situation):
+    ...
+
+
+# In[11]:
+
+
+#任务顺序限制
+rd = np.random.RandomState(0) 
+resAvail=rd.randint(100,1001,size=2)
+R0=resAvail
+print(R0)
+tasknum=rd.randint(5,21,size=1)
+mapmatrix=rd.randint(0,2,(tasknum[0],tasknum[0]))
+mapmatrix=np.triu(mapmatrix,1)
+print(mapmatrix)
+dur=rd.randint(10,100,size=tasknum[0])
+print(dur)
+workmap=list()
+
+for i in range (0,tasknum[0]):
+    a=np.where(mapmatrix[:,i]==1)
+
+    b=list()
+    for i in range (0,np.size(a)):
+        b.append(a[0][i]+1)
+    workmap.append(b)   
+workmap=np.array([x for x in workmap])
+
+#任务生成
+def workrank(vars,workmap):
+    size=np.size(vars)
+    size1=size
+    rank=np.array([0]*size)
+    for i in range(0,size):
+        for j in range(0,size1):
+            flag=0 
+            for k in range(0,np.size(workmap[vars[j]-1])):
+                if workmap[vars[j]-1][k] not in rank:
+                    flag=1     
+                    break
+            if flag == 0:
+                rank[i]=vars[j]
+                vars=np.delete(vars,j)
+                size1=size1-1
+                break               
+    return rank             
+        
+
+# 自定义问题类
+class MyProblem(ea.Problem): # 继承Problem父类
+    def __init__(self, M,workmap,R0):
+        name = 'nsga2' # 初始化name（函数名称，可以随意设置）
+        maxormins = [1] * M # 初始化maxormins（目标最小最大化标记列表，1：最小化该目标；-1：最大化该目标）
+        Dim = np.size(workmap)+ np.size(workmap) * np.size(R0) +g# 初始化Dim（决策变量维数）
+        varTypes = np.array([1] * Dim) # 初始化varTypes（决策变量的类型，0：实数；1：整数）
+        lb = [0]* (np.size(workmap) * (np.size(R0)+1)+g)
+        # 决策变量下界
+        ub = [np.size(workmap)] * np.size(workmap)
+        for i in range(0,np.size(R0)):
+            ub=ub+[R0[i]]* np.size(workmap)
+        ub=[1]*g+ub
+        # 决策变量上界
+        lbin = [0] * Dim # 决策变量下边界
+        ubin = [1] * Dim # 决策变量上边界
+        # 调用父类构造方法完成实例化
+        ea.Problem.__init__(self, name, M, maxormins, Dim, varTypes, lb, ub, lbin, ubin)
+    def aimFunc(self, pop): # 目标函数
+        Vars = pop.Phen # 得到决策变量矩阵
+        f=Vars[:,0:g]
+        for i in range (0,Vars.shape[0]):
+            rank=workrank(Vars[i,g:np.size(workmap)+g].astype('int64'),workmap)
+            s=rank-1
+
+            r=Vars[i,np.size(workmap)+g:self.Dim].reshape(np.size(R0),np.size(workmap))
+
+            rs=8/np.sum(r)
+            resInv=[]
+            for j in range(0,tasknum[0]):
+              
+                resInv.append(np.array([r[0,j],r[1,j]]))
+            
+            T=[]
+
+            for k in range (0,tasknum[0]):
+                if workmap[k]==[]:
+                    T.append(Task(None,dur[k],resInv[k],resInv[k]))
+                else:
+                    T.append(Task([x-1 for x in workmap[k]],dur[k],resInv[k],resInv[k]))
+            Tasks=[]
+            for l in range(0,tasknum[0]):
+                Tasks.append(T[rank[l]-1])
+            #print(S)
+            #print(r)
+## resource constraints
+            # pred1 = None
+            # pred2 = [0]
+            # pred3 = [0]
+            # pred4 = [1, 2]
+            # dur1 = 5
+            # dur2 = 7
+            # dur3 = 9
+            # dur4 = 6
+            # resInv1 = np.array([r[0,0], r[1,0]])
+            # resInv2 = np.array([r[0,1], r[1,1]])
+            # resInv3 = np.array([r[0,2], r[1,2]])
+            # resInv4 = np.array([r[0,3], r[1,3]])
+
+            # T1 = Task(pred1, dur1, resInv1, resInv1)
+            # T2 = Task(pred2, dur2, resInv2, resInv2)
+            # T3 = Task(pred3, dur3, resInv3, resInv3)
+            # T4 = Task(pred4, dur4, resInv4, resInv4)
+            # Tasks = [T1, T2, T3, T4]
+            schedule(Tasks,s)
+            f[i,:]=[calc_makespan(Tasks),rs]
+
+        pop.ObjV = f # 把求得的目标函数值赋值给种群pop的ObjV
+        
+            
+
+
+
+
+
+# 编写执行代码
+"""===============================实例化问题对象=============================="""
+M = 2                    # 设置目标维数
+problem = MyProblem(M,workmap,R0)    # 生成问题对象
+"""==================================种群设置================================="""
+Encodings = ['RI','P','RI']           # 编码方式
+NIND = 50               # 种群规模
+Field0 = ea.crtfld(Encodings[0], problem.varTypes[:g],problem.ranges[:,:g], problem.borders[:,:g])
+Field1 = ea.crtfld(Encodings[1], problem.varTypes[g:np.size(workmap)+g],problem.ranges[:,g:np.size(workmap)+g], problem.borders[:,g:np.size(workmap)+g])
+Field2 = ea.crtfld(Encodings[2], problem.varTypes[np.size(workmap)+g:],problem.ranges[:,np.size(workmap)+g:], problem.borders[:,np.size(workmap)+g:])
+Fields = [Field0, Field1, Field2]
+population = ea.PsyPopulation(Encodings, Fields, NIND) # 实例化种群对象（此时种群还没被初始化，仅仅是完成种群对象的实例化）
+"""================================算法参数设置==============================="""
+myAlgorithm = al.moea_psy_NSGA2_templet(problem, population) # 实例化一个算法模板对象
+myAlgorithm.MAXGEN = 500 # 最大进化代数
+myAlgorithm.logTras = 1# 设置每多少代记录日志，若设置成0则表示不记录日志
+myAlgorithm.verbose = False#True# # 设置是否打印输出日志信息
+myAlgorithm.drawing = 0   # 设置绘图方式（0：不绘图；1：绘制结果图；2：绘制过程动画）
+"""==========================调用算法模板进行种群进化=========================
+调用run执行算法模板，得到帕累托最优解集NDSet以及最后一代种群。NDSet是一个种群类Population的对象。
+NDSet.ObjV为最优解个体的目标函数值；NDSet.Phen为对应的决策变量值。
+详见Population.py中关于种群类的定义。
+"""
+[NDSet, population] = myAlgorithm.run() # 执行算法模板，得到非支配种群以及最后一代种群
+
+
+
+
+x=NDSet.ObjV[:,0]
+y=NDSet.ObjV[:,1]
+xy=x+y*1j
+n=np.unique(xy,return_index=True)[1]
+NDSet=NDSet[n]
+print(NDSet.ObjV[:,0])
+# x=NDSet.ObjV[:,0]
+# m1=np.where(x<100)
+# y=NDSet.ObjV[:,1]
+# m2=np.where(y<100)
+# m = np.intersect1d(m1,m2)
+# NDSet=NDSet[m]
+
+#choose  
+ymax=NDSet.ObjV[0,1]
+ymin=NDSet.ObjV[NDSet.ObjV.shape[0]-1,1]
+plannum=5
+planset=[0]*plannum
+for i in range(0,plannum):
+    planset[i]=np.argmin(abs(NDSet.ObjV[:,1]-ymin-(plannum-i-1)*(ymax-ymin)/(plannum-1)))
+print(planset)
+NDSet=NDSet[planset]
+
+
+for i in range (0,NDSet.ObjV.shape[0]): 
+    
+    rank=workrank(NDSet.Phen[i,g:np.size(workmap)+g].astype('int64'),workmap) 
+    s=rank-1
+    print(rank)
+    r=NDSet.Phen[i,np.size(workmap)+g:np.size(workmap)+ np.size(workmap) * np.size(R0) +g].reshape(np.size(R0),np.size(workmap))
+    resInv=[]
+    for j in range(0,tasknum[0]):
+        resInv.append(np.array([[r[0,j],r[1,j]]]))
+
+    T=[]
+    T.append(Task(None,dur[0],resInv[0],resInv[0]))
+    for k in range (1,tasknum[0]):
+        T.append(Task([x-1 for x in workmap[k]],dur[k],resInv[k],resInv[k]))
+    Tasks=[]
+    for l in range(0,tasknum[0]):
+        Tasks.append(T[rank[l]-1])
+    schedule(Tasks,s)
+    for m in range (0,tasknum[0]):
+        print(T[m].ts)
+    print(r)
+    print(calc_makespan(Tasks))
+NDSet.save()  # 把非支配种群的信息保存到文件中
+"""==================================输出结果=============================="""
+print('用时：%f 秒' % myAlgorithm.passTime)
+print('评价次数：%d 次' % myAlgorithm.evalsNum)
+print('非支配个体数：%d 个' % NDSet.sizes) if NDSet.sizes != 0 else print('没有找到可行解！')
+
+
+
+
+
+
+
