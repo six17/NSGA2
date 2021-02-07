@@ -93,7 +93,7 @@ def calc_winrate(Tasks, Situation):
 
 
 #任务顺序限制
-rd = np.random.RandomState(0) 
+rd = np.random.RandomState(0) #修改种子数以改变随机
 resAvail=rd.randint(100,1001,size=2)
 R0=resAvail
 print(R0)
@@ -288,6 +288,7 @@ NDSet.save()  # 把非支配种群的信息保存到文件中
 print('用时：%f 秒' % myAlgorithm.passTime)
 print('评价次数：%d 次' % myAlgorithm.evalsNum)
 print('非支配个体数：%d 个' % NDSet.sizes) if NDSet.sizes != 0 else print('没有找到可行解！')
+#按“esc”退出计算
 
 
 
