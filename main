@@ -5,8 +5,9 @@ import alorithm_psy as al
 from gantt import Gantt
 import json
 import math
-g=2
+g=2 # 多目标维度（2）
 
+#以下为建模
 class Platform:                     # equal to resource
     def __init__(self, platNum, speed, initPos):
         #self.ptype = ptype          # platform type
@@ -163,18 +164,18 @@ def plot_gantt(Tasks):
     gt = Gantt('./'+filename)
     gt.render()
     gt.show()
+#建模用到的函数
 
-
-#任务顺序限制
-rd=np.random.RandomState(1) 
-resAvail=rd.randint(3,11,size=1)
+#任务顺序限制，随机生成任务
+rd=np.random.RandomState(1) #改变种子数以改变随机
+resAvail=rd.randint(3,11,size=1)#多智能体数量随机
 R0=resAvail
 resAvail=[1]*resAvail[0]
 print(resAvail)
-tasknum=rd.randint(4,11,size=1)
-pos=rd.randint(0,51,(tasknum[0],2))
+tasknum=rd.randint(4,11,size=1)#任务数量随机
+pos=rd.randint(0,51,(tasknum[0],2))#任务位置随机
 print(pos)
-mapmatrix=rd.randint(0,2,(tasknum[0],tasknum[0]))
+mapmatrix=rd.randint(0,2,(tasknum[0],tasknum[0]))#任务顺序限制随机
 mapmatrix=np.triu(mapmatrix,1)
 print(mapmatrix)
 v=rd.random((1,R0[0]))*5+0.5
@@ -188,12 +189,12 @@ for i in range (0,tasknum[0]):
     for i in range (0,np.size(a)):
         b.append(a[0][i]+1)
     workmap.append(b)   
-workmap=np.array([x for x in workmap])
+workmap=np.array([x for x in workmap])#将任务顺序限制由图的方式进行转换
 print(workmap)
 
 
 
-#任务生成
+#任务生成函数，由优先矩阵和任务顺序限制生成任务排序顺序
 def workrank(vars,workmap):
     size=np.size(vars)
     size1=size
@@ -240,7 +241,7 @@ class MyProblem(ea.Problem): # 继承Problem父类
             priority=rank-1
             r=Vars[i,np.size(workmap)+g:self.Dim].reshape(np.size(workmap),R0[0])
 
-            rs=8/(np.sum(r)+1)
+            rs=8/(np.sum(r)+1)#指标2，这里用资源和倒数简单代替
             resInv=[]
             for j in range(0,tasknum[0]):
               
@@ -301,7 +302,7 @@ NDSet.ObjV为最优解个体的目标函数值；NDSet.Phen为对应的决策变
 
 
 x=NDSet.ObjV[:,0]
-
+#去重
 y=NDSet.ObjV[:,1]
 xy=x+y*1j
 n=np.unique(xy,return_index=True)[1]
@@ -314,7 +315,7 @@ print(NDSet.ObjV[:,0])
 # m = np.intersect1d(m1,m2)
 # NDSet=NDSet[m]
 
-#choose  
+#choose，筛选5个方案
 ymax=NDSet.ObjV[0,1]
 ymin=NDSet.ObjV[NDSet.ObjV.shape[0]-1,1]
 plannum=5
@@ -325,7 +326,7 @@ print(planset)
 NDSet=NDSet[planset]
 print(NDSet.ObjV[:,0])
 print(NDSet.Phen)
-
+#输出
 for i in range (0,NDSet.ObjV.shape[0]): 
     
     rank=workrank(NDSet.Phen[i,g:np.size(workmap)+g].astype('int64'),workmap) 
@@ -365,7 +366,9 @@ print('评价次数：%d 次' % myAlgorithm.evalsNum)
 print('非支配个体数：%d 个' % NDSet.sizes) if NDSet.sizes != 0 else print('没有找到可行解！')
 
 
-#按“esc”退出计算
+#按“esc”中断计算
+#可视化部分见alorithom_psy
+
 
 
 
