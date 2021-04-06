@@ -1,3 +1,150 @@
+ros教程：
+http://wiki.ros.org/cn/ROS/Tutorials
+https://www.aidaxue.com/course/courseDetail?id=392&ch=bdjh-ros02&bd_vid=10050555582088818694
+
+1.创建工作空间与功能包
+
+创建工作空间
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws/src
 catkin_init_workspace
+
+编译工作空间
+cd ~/catkin_ws/
+catkin_make
+
+设置环境变量
+source devel/setup.bash
+
+********
+避免每次设置环境变量方法：
+终端输入：
+gedit ~/.bashrc
+将下面命令粘贴到最下面的位置
+source ~/catkin_ws/devel/setup.bash
+或者使用
+echo “source ~/catkin_ws/devel/setup.bash” >> ~/.bashrc
+********
+
+创建功能包
+cd ~/catkin_ws/src
+catkin_create_pkg pub_sub_test std_msgs rospy roscpp
+
+编译功能包
+cd ~/catkin_ws
+catkin_make pub_sub_test
+source devel/setup.bash
+
+
+2.发布者publisher的编程实现
+-初始化ROS节点
+-向ROS Master 注册节点信息包括发布的话题名和话题中的消息类型
+-创建消息数据
+-按照一定频率循环发布消息
+
+以python为例:
+
+创建编程文件
+在需要创建的文件夹中打开终端
+gedit pub.py
+
+文件内容：
+
+#!/usr/bin/env python
+
+import rospy
+from std_msgs.msg import Float32MultiArray
+#消息类型为std_msgs.msg::Float32MultiArray
+def talker():
+    pub = rospy.Publisher('chatter_1', Float32MultiArray, queue_size=1)
+    #创建publisher，topic名为chatter_1，消息类型为std_msgs.msg::Float32MultiArray，队列长度用于在订阅者接收消息的速度不够快的情况下，限制排队的消息数量，但为了接受最新的消息，应当设置为1
+    rospy.init_node('talker', anonymous=True)
+    #节点初始化，节点名为‘talker’,anonymous = True会让名称末尾添加随机数，来确保节点具有唯一的名称
+    rate = rospy.Rate(10) # 10hz
+    #设置速率，每秒循环10次
+    while not rospy.is_shutdown():
+	      array=[5,5,1,1]        
+	      msg=Float32MultiArray(data=array)
+        #初始化消息
+        rospy.loginfo(msg)
+        #打印消息到屏幕上；把消息写入节点的日志文件中；写入rosout
+        pub.publish(msg)
+        #发布消息
+        rate.sleep()
+
+if __name__ == '__main__':
+    try:
+        talker()
+    except rospy.ROSInterruptException:
+        pass
+        
+右键文件-权限-勾选允许作为程序执行文件
+
+3.订阅者Subscruber的编程实现
+-初始化ROS节点
+-订阅需要的话题
+-循环等待话题消息，接收到消息后进入回调函数
+-在回调函数中完成消息处理
+
+以python为例:
+
+创建编程文件
+在需要创建的文件夹中打开终端
+gedit sub.py
+
+文件内容：
+
+#!/usr/bin/env python
+import rospy
+from std_msgs.msg import Float32MultiArray
+
+def callback(data):
+    rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)
+    
+def listener():
+
+    rospy.init_node('listener', anonymous=True)
+    rospy.Subscriber("chatter_2", Float32MultiArray, callback)
+    rospy.spin()
+    #不让你的节点退出，直到节点被明确关闭
+if __name__ == '__main__':
+    listener()
+
+右键文件-权限-勾选允许作为程序执行文件
+
+3.在同一个节点同时收发消息
+全局变量的方法：
+
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import rospy
+from std_msgs.msg import Float32MultiArray
+
+
+pub = rospy.Publisher('chatter_2', Float32MultiArray, queue_size=1)  #发布话题设为全局变量
+
+class listener():#接收话题设为类
+    def __init__(self):
+        rospy.init_node('talk_listener', anonymous=True)
+        rospy.Subscriber("chatter_1", Float32MultiArray, self.callback,queue_size = 1)
+
+    def callback(self,data):
+	      array=[x+1 for x in data.data]        
+	      msg=Float32MultiArray(data=array)
+        pub.publish(msg)
+	      rospy.loginfo( "I heard %s\nI pub %s", data.data,msg.data)
+
+if __name__ == '__main__':
+    listener()
+    rospy.spin()
+   
+右键文件-权限-勾选允许作为程序执行文件
+
+4.启动节点
+roscore
+打开另一终端
+cd ~/catkin_ws
+catkin_make
+source ./devel/setup.bash
+
+rosrun pub_sub_test pub.py
