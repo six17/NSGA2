@@ -140,6 +140,9 @@ if __name__ == '__main__':
    
 右键文件-权限-勾选允许作为程序执行文件
 
+服务端、客户端编写 略
+参见：http://wiki.ros.org/cn/ROS/Tutorials/WritingServiceClient%28python%29
+
 4.启动节点
 roscore
 打开另一终端
@@ -148,3 +151,143 @@ catkin_make
 source ./devel/setup.bash
 
 rosrun pub_sub_test pub.py
+
+rosrun pub_sub_test pub_sub.py
+
+rosrun pub_sub_test sub.py
+
+一次启动多个节点：
+在pub_sub_test文件夹
+mkdir launch
+cd launch
+gedit test.launch
+
+文件内容
+<launch>
+
+
+    <node pkg="pub_sub_test" name="talker" type="pub.py" output="screen"/>
+    #pkg功能包名，name节点名，type文件名
+    #更多参数见https://wiki.ros.org/roslaunch/XML
+    <node pkg="pub_sub_test" name="talk_listener" type="pub_sub.py"/>
+    <node pkg="pub_sub_test" name="listener" type="sub.py"/>
+
+
+</launch>
+
+roscore
+打开另一终端
+cd ~/catkin_ws
+catkin_make
+source ./devel/setup.bash
+roslaunch pub_sub_test test.launch
+
+5.话题消息
+可参考
+http://wiki.ros.org/sensor_msgs    主要包含一些与传感器信息读取相关的消息类型
+http://wiki.ros.org/geometry_msgs  主要包含一些与机器人运动控制和定位姿态相关的消息类型
+http://wiki.ros.org/std_msgs       主要包含一些基础的消息类型格式，是其他类型的基础
+
+自定义消息类型
+roscd pub_sub_test
+mkdir msg
+gedit Num.msg
+
+文件内容：
+int64 num
+
+打开package.xml，添加：
+<build_depend>message_generation</build_depend>
+<exec_depend>message_runtime</exec_depend>
+
+打开CMakeLists.txt添加编译选项
+find_package(...... message_generation)
+
+add_message_files(FILES Num.msg)
+generate_messages(DEPENDENCIES std_msgs)
+
+catkin_package(...... 
+	CATKIN_DEPENDS ...message_runtime)
+
+编译相关文件
+
+查看Num：
+rosmsg show Num
+
+服务.srv创建 略
+参见：http://wiki.ros.org/cn/ROS/Tutorials/CreatingMsgAndSrv
+
+6.通过命令行查看相关信息
+查看当前活跃的节点
+rosnode list
+查看节点的发布订阅状态
+rosnode info
+查看当前活跃的话题列表
+rostopic list
+通过该命令可以查看话题下的消息类型
+rostopic type [topic]
+查看消息具体是什么
+rostopic echo [消息名]
+发布消息
+rostopic pub [topic] [msg_type] [args]
+例：
+rostopic pub chatter_1 std_msgs/Float32MultiArray -r 10 "layout:
+  dim:
+  - label: ''
+    size: 0
+    stride: 0
+  data_offset: 0
+data:
+-1
+-1
+-0
+-0" 
+
+查看当前活跃的消息列表
+rosmsg list
+查看消息字段（具体类型）
+rosmsg show [消息名]
+查看当前活跃的服务列表
+rosservice list
+查看服务的类型
+rosservice type [服务名]
+调用服务
+rosservice call [服务名] [参数]
+
+7.rqt
+计算图可视化
+rqt_graph
+日志输出工具
+rqt_console
+数据绘图
+rqt_plot
+
+8.参数文件
+在catkin_ws文件夹
+getid params.yaml
+
+文件内容：
+number: 1 
+
+修改pub.py:
+params=rospy.get_param('number')
+array=[5,params,1,1]
+
+加载参数：
+rosparam load params.yaml
+如果文件不在catkin_ws文件夹这一级，需要添加路径
+或写入launch文件
+<rosparam file="$(find readyaml)/params.yaml" command="load"/>
+启动pub.py
+
+其他操作：
+rosparam set            设置参数
+rosparam get            获取参数
+rosparam load           从文件中加载参数
+rosparam dump           向文件中转储参数
+rosparam delete         删除参数
+rosparam list           列出参数名
+
+python文件中的编程操作：
+rospy.get_param('[name]')
+set_param('[name]',[value])
